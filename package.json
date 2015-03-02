@@ -13,7 +13,8 @@
   ],
   "author": "Andrei Berezin <yago.spb@gmail.com>",
   "dependencies": {
-    "yeelight-blue": "0.1.*"
+    "yeelight-blue": "0.1.*",
+    "express": "4.12.*"
   },
   "bugs": {
     "url": "https://github.com/AndreiBerezin/yeelight-blue-notificator/issues"
