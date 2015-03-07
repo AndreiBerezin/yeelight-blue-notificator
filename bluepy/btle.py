@@ -183,7 +183,7 @@ class Peripheral:
         self._helper = None
         self._poller = None
         self.services = {} # Indexed by UUID
-	self.addrType = addrType
+        self.addrType = addrType
         self.discoveredAllServices = False
         self.delegate = DefaultDelegate()
         if deviceAddr is not None:
@@ -628,9 +628,9 @@ if __name__ == '__main__':
 
     devAddr = sys.argv[1]
     if len(sys.argv) == 3:
-	    addrType = sys.argv[2]
+        addrType = sys.argv[2]
     else:
-	    addrType = ADDR_TYPE_PUBLIC
+        addrType = ADDR_TYPE_PUBLIC
     print("Connecting to: {}, address type: {}".format(devAddr, addrType))
     conn = Peripheral(devAddr, addrType)
     try:
