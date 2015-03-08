@@ -1,6 +1,7 @@
 from flask import Flask
 from yeelightblue import YeeLightBlue
 from random import randint
+import time
 import config
 
 app = Flask(__name__)
@@ -11,10 +12,15 @@ def color():
     red = randint(0, 255)
     green = randint(0, 255)
     blue = randint(0, 255)
-    brightness = randint(0, 255)
-    yeelightblue.setColor(red, green, blue, brightness)
+    yeelightblue.setColor(red, green, blue)
 
-    return 'red {0} green {1} blue {2} brightness {3} setted'.format(red, green, blue, brightness)
+    return 'red {0} green {1} blue {2} setted'.format(red, green, blue)
+
+@app.route('/flow')
+def colorFlow():
+    yeelightblue.colorFlow()
+
+    return 'color flow'
 
 @app.route('/on')
 def on():

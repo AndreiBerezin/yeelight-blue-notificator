@@ -39,7 +39,7 @@ class YeeLightBlue:
     #     self.logger = logging.getLogger('YeeLightBlue')
     #     self.logger.setLevel(logging.WARNING)
     #
-    #     logfile = "{0}/{1}".format(config.LOG_DIR, config.LOG_MAIN_FILE)
+    #     logfile = '{0}/{1}'.format(config.LOG_DIR, config.LOG_MAIN_FILE)
     #     handler = logging.FileHandler(logfile)
     #     self.logger.addHandler(handler)
 
@@ -84,18 +84,25 @@ class YeeLightBlue:
             characteristic = self.characteristics[charName]
             char = mainService.getCharacteristics(characteristic['uuid'])
             characteristic['handle'] = char[0].valHandle
+        self.__writeCharacteristic('EFFECT', 'TE')  # color non-gradual mode
 
     def _disconnect(self):
         pass
 
     def turnOn(self):
-        self.__writeCharacteristic('CONTROL', "{0},{1},{2},{3}".format(255, 255, 255, 100))
+        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(255, 255, 255, 100))
 
     def turnOff(self):
-        self.__writeCharacteristic('CONTROL', "{0},{1},{2},{3}".format(0, 0, 0, 0))
+        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(0, 0, 0, 0))
 
-    def setColor(self, red, green, blue, brightness):
-        self.__writeCharacteristic('CONTROL', "{0},{1},{2},{3}".format(red, green, blue, brightness))
+    def setColor(self, red, green, blue, brightness=100):
+        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(red, green, blue, brightness))
+
+    def colorFlow(self):
+        self.__writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(0, 255, 0, 0, 100, 1))
+        self.__writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(1, 70, 0, 0, 100, 1))
+
+        self.__writeCharacteristic('COLOR_FLOW', 'CB')
 
     def __writeCharacteristic(self, charName, command):
         i = len(command)
