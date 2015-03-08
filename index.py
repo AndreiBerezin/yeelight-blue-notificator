@@ -2,6 +2,7 @@ from flask import Flask
 from yeelightblue import YeeLightBlue
 from random import randint
 import time
+import math
 import config
 
 app = Flask(__name__)
@@ -17,10 +18,16 @@ def color():
     return 'red {0} green {1} blue {2} setted'.format(red, green, blue)
 
 @app.route('/flow')
-def colorFlow():
-    yeelightblue.colorFlow()
+def flow():
+    yeelightblue.flash(2, 255, 0, 0, True)
 
-    return 'color flow'
+    return 'flash'
+
+@app.route('/flash')
+def flash():
+    yeelightblue.flash(2, 255, 0, 0, False)
+
+    return 'flash'
 
 @app.route('/on')
 def on():

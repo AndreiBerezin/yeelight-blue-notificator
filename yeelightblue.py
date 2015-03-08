@@ -1,9 +1,12 @@
 import pexpect
 import re
 import time
-from bluepy.btle import UUID, Peripheral, DefaultDelegate
+from bluepy.btle import Peripheral
+import math
 # import config
 # import logging
+import signal
+
 
 class YeeLightBlue:
     def __init__(self):
@@ -27,15 +30,16 @@ class YeeLightBlue:
         self.peripheral = None
 
         # self.logger = None
-        # self.__initLogger()
+        # self._initLogger()
 
-        devices = self.__scan()
-        if len(devices) != 1:
-            raise Exception('YeeLightBlue not found')
-        else:
-            self.__connect(devices[0]['addr'])
+        try:
+            devices = self._scan()
+            self._connect(devices[0]['addr'])
+        except Exception as e:
+            print e.message + '; rescan for YeeLightBlue...'
+            self.__init__()
 
-    # def __initLogger(self):
+    # def _initLogger(self):
     #     self.logger = logging.getLogger('YeeLightBlue')
     #     self.logger.setLevel(logging.WARNING)
     #
@@ -43,7 +47,36 @@ class YeeLightBlue:
     #     handler = logging.FileHandler(logfile)
     #     self.logger.addHandler(handler)
 
-    def __scan(self, hci_name='hci0', name_filter='^Yeelight.*', timeout=3):
+    def turnOn(self):
+        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(255, 255, 255, 100))
+
+    def turnOff(self):
+        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(0, 0, 0, 0))
+
+    def setColor(self, red, green, blue, brightness=100):
+        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(red, green, blue, brightness))
+
+    def flash(self, timeout, red, green, blue, useColorFlow):
+        class TimeoutError(Exception):
+            pass
+        def handler(signum, frame):
+            raise TimeoutError
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(timeout)
+        try:
+            if useColorFlow:
+                self._colorFlow(red, green, blue)
+            else:
+                self._colorFlash(red, green, blue)
+        except TimeoutError:
+            if useColorFlow:
+                self._writeCharacteristic('COLOR_FLOW', 'CE')  # complete color flow command
+            pass
+        finally:
+            signal.alarm(0)
+
+
+    def _scan(self, hci_name='hci0', name_filter='^Yeelight.*', timeout=3):
         # self.logger.warn('start scan')
         conn = None
         try:
@@ -71,9 +104,12 @@ class YeeLightBlue:
         lines = [re.match(line_pat, line).groupdict() for line in lines]
         lines = [line for line in lines if re.match(name_filter, line['name'])]
 
+        if len(lines) != 1:
+            raise Exception('YeeLightBlue not found')
+
         return lines
 
-    def __connect(self, address):
+    def _connect(self, address):
         if not address:
             return
 
@@ -84,27 +120,39 @@ class YeeLightBlue:
             characteristic = self.characteristics[charName]
             char = mainService.getCharacteristics(characteristic['uuid'])
             characteristic['handle'] = char[0].valHandle
-        self.__writeCharacteristic('EFFECT', 'TE')  # color non-gradual mode
 
     def _disconnect(self):
         pass
 
-    def turnOn(self):
-        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(255, 255, 255, 100))
+    def _setMode(self, mode):
+        if mode not in ['TE', 'TS']:  # TE: non-gradual, TS: gradual
+            raise Exception('Invalid effect mode')
+        self._writeCharacteristic('EFFECT', mode)
 
-    def turnOff(self):
-        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(0, 0, 0, 0))
+    def _colorFlow(self, red, green, blue):
+        self._setMode('TS')
+        self._writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(0, red, green, blue, 100, 1))
+        if red != 0:
+            red = abs(red - 255)
+        if green != 0:
+            green = abs(green - 255)
+        if blue != 0:
+            blue = abs(blue - 255)
+        self._writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(1, red, green, blue, 100, 1))
+        self._writeCharacteristic('COLOR_FLOW', 'CB')
+        while True:
+            pass  # waiting timeout
 
-    def setColor(self, red, green, blue, brightness=100):
-        self.__writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(red, green, blue, brightness))
+    def _colorFlash(self, red, green, blue):
+        self._setMode('TE')
+        i = 0
+        while True:
+            sin = (math.sin(i) + 1) / 2
+            self.setColor(int(red * sin), int(green * sin), int(blue * sin))
+            time.sleep(0.01)
+            i += 0.1
 
-    def colorFlow(self):
-        self.__writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(0, 255, 0, 0, 100, 1))
-        self.__writeCharacteristic('COLOR_FLOW', '{0},{1},{2},{3},{4},{5}'.format(1, 70, 0, 0, 100, 1))
-
-        self.__writeCharacteristic('COLOR_FLOW', 'CB')
-
-    def __writeCharacteristic(self, charName, command):
+    def _writeCharacteristic(self, charName, command):
         i = len(command)
         characteristic = self.characteristics[charName]
         while i < characteristic['length']:
