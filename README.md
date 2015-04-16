@@ -8,4 +8,4 @@ yeelight blue notificator now in python for linux only
 
 ### Requirements:
 - 1) pip install -r requirements
-- 2) mv config.py.dist config.py
+- 2) cp config.py.dist config.py
