@@ -1,133 +1,79 @@
-import pexpect
-import re
 import time
-from bluepy.btle import Peripheral
 import math
 # import config
-# import logging
 import signal
-
+from device import Device
+from datetime import datetime
 
 class YeeLightBlue:
+    _characteristics = {
+        'CONTROL': {
+            'uuid': 'fff1',
+            'handle': None,
+            'length': 18
+        },
+        'COLOR_FLOW': {
+            'uuid': 'fff7',
+            'handle': None,
+            'length': 20
+        },
+        'EFFECT': {
+            'uuid': 'fffc',
+            'handle': None,
+            'length': 2
+        },
+    }
+    _device = None
+
     def __init__(self):
-        self.characteristics = {
-            'CONTROL': {
-                'uuid': 'fff1',
-                'handle': None,
-                'length': 18
-            },
-            'COLOR_FLOW': {
-                'uuid': 'fff7',
-                'handle': None,
-                'length': 20
-            },
-            'EFFECT': {
-                'uuid': 'fffc',
-                'handle': None,
-                'length': 2
-            },
-        }
-        self.peripheral = None
+        self._device = Device(self._characteristics)
+        self._discover()
 
-        # self.logger = None
-        # self._initLogger()
-
+    def _discover(self):
         try:
-            devices = self._scan()
-            self._connect(devices[0]['addr'])
+            self._device.discover('^Yeelight.*', 'fff0')
         except Exception as e:
-            print e.message + '; rescan for YeeLightBlue...'
-            self.__init__()
-
-    # def _initLogger(self):
-    #     self.logger = logging.getLogger('YeeLightBlue')
-    #     self.logger.setLevel(logging.WARNING)
-    #
-    #     logfile = '{0}/{1}'.format(config.LOG_DIR, config.LOG_MAIN_FILE)
-    #     handler = logging.FileHandler(logfile)
-    #     self.logger.addHandler(handler)
+            print 'rescan for YeeLightBlue... (%s)' % str(datetime.now())
+            self._discover()
 
     def turnOn(self):
-        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(255, 255, 255, 100))
+        try:
+            self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(255, 255, 255, 100))
+        except Exception as e:
+            print 'turn on failed at %s' % str(datetime.now())
 
     def turnOff(self):
-        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(0, 0, 0, 0))
+        try:
+            self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(0, 0, 0, 0))
+        except Exception as e:
+            print 'turn off failed at %s' % str(datetime.now())
 
     def setColor(self, red, green, blue, brightness=100):
-        self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(red, green, blue, brightness))
+        try:
+            self._writeCharacteristic('CONTROL', '{0},{1},{2},{3}'.format(red, green, blue, brightness))
+        except Exception as e:
+            print 'set color failed at %s' % str(datetime.now())
 
     def flash(self, timeout, red, green, blue, useColorFlow):
-        class TimeoutError(Exception):
-            pass
-        def handler(signum, frame):
-            raise TimeoutError
-        signal.signal(signal.SIGALRM, handler)
-        signal.alarm(timeout)
         try:
-            if useColorFlow:
-                self._colorFlow(red, green, blue)
-            else:
-                self._colorFlash(red, green, blue)
-        except TimeoutError:
-            if useColorFlow:
-                self._writeCharacteristic('COLOR_FLOW', 'CE')  # complete color flow command
-            pass
-        finally:
-            signal.alarm(0)
-
-
-    def _scan(self, hci_name='hci0', name_filter='^Yeelight.*', timeout=3):
-        # self.logger.warn('start scan')
-        conn = None
-        try:
-            conn = pexpect.spawn('hciconfig %s reset' % hci_name)
-            time.sleep(0.2)
-
-            conn = pexpect.spawn('timeout %d hcitool lescan' % timeout)
-            time.sleep(0.2)
-        except Exception:
-            return
-
-        conn.expect('LE Scan \.+', timeout=timeout)
-        output = ''
-        line_pat = '(?P<addr>([0-9A-F]{2}:){5}[0-9A-F]{2}) (?P<name>.*)'
-        while True:
+            class TimeoutError(Exception):
+                pass
+            def handler(signum, frame):
+                raise TimeoutError
+            signal.signal(signal.SIGALRM, handler)
+            signal.alarm(timeout)
             try:
-                res = conn.expect(line_pat)
-                output += conn.after
-            except pexpect.EOF:
-                break
-
-        lines = re.split('\r?\n', output.strip())
-        lines = list(set(lines))
-        lines = [line for line in lines if re.match(line_pat, line)]
-        lines = [re.match(line_pat, line).groupdict() for line in lines]
-        lines = [line for line in lines if re.match(name_filter, line['name'])]
-
-        if len(lines) != 1:
-            raise Exception('YeeLightBlue not found')
-
-        return lines
-
-    def _connect(self, address):
-        if not address:
-            return
-
-        self.periferal = Peripheral(deviceAddr=address)
-        self.periferal.discoverServices()
-        mainService = self.periferal.getServiceByUUID('fff0')
-        for charName in self.characteristics:
-            characteristic = self.characteristics[charName]
-            char = mainService.getCharacteristics(characteristic['uuid'])
-            characteristic['handle'] = char[0].valHandle
-
-    def _disconnect(self):
-        pass
-
-    def _setMode(self, mode):
-        if mode not in ['TE', 'TS']:  # TE: non-gradual, TS: gradual
-            raise Exception('Invalid effect mode')
-        self._writeCharacteristic('EFFECT', mode)
+                if useColorFlow:
+                    self._colorFlow(red, green, blue)
+                else:
+                    self._colorFlash(red, green, blue)
+            except TimeoutError:
+                if useColorFlow:
+                    self._writeCharacteristic('COLOR_FLOW', 'CE')  # complete color flow command
+            finally:
+                signal.alarm(0)
+        except Exception as e:
+            print 'flash failed at %s' % str(datetime.now())
 
     def _colorFlow(self, red, green, blue):
         self._setMode('TS')
@@ -152,12 +98,30 @@ class YeeLightBlue:
             time.sleep(0.01)
             i += 0.1
 
-    def _writeCharacteristic(self, charName, command):
+    def _setMode(self, mode):
+        if mode not in ['TE', 'TS']:  # TE: non-gradual, TS: gradual
+            raise Exception('Invalid effect mode')
+        self._writeCharacteristic('EFFECT', mode)
+
+    def _writeCharacteristic(self, characteristicName, command):
         i = len(command)
-        characteristic = self.characteristics[charName]
-        while i < characteristic['length']:
+        while i < self._characteristics[characteristicName]['length']:
             command += ','
             i += 1
-        self.periferal.writeCharacteristic(characteristic['handle'], command)
-        pass
+        self._device.writeCharacteristic(characteristicName, command)
 
+'''
+    def timer(self, onStartFunction, onFinishFunction, timeout):
+        class TimeoutError(Exception):
+            pass
+        def handler(signum, frame):
+            raise TimeoutError
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(timeout)
+        try:
+            onStartFunction()
+        except TimeoutError:
+            onFinishFunction()
+        finally:
+            signal.alarm(0)
+'''

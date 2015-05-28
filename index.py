@@ -1,8 +1,6 @@
 from flask import Flask
 from yeelightblue import YeeLightBlue
 from random import randint
-import time
-import math
 import config
 
 app = Flask(__name__)
